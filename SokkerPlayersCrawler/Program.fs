@@ -1,5 +1,4 @@
-﻿open FSharp.Collections.ParallelSeq
-open FSharp.Data
+﻿open FSharp.Data
 open System
 open System.Text.RegularExpressions
 open System.IO
@@ -7,7 +6,7 @@ open System.IO
 type Player = HtmlProvider<"http://sokker.org/player/PID/25410835">
 type Message = string * AsyncReplyChannel<string>
 
-let minPlayerId = 29657066
+let minPlayerId = 35657066
 let maxPlayerId = 29641529
 let minPrice = 1391000
 let priceRegex = Regex("[0-9 ]{1,}")
@@ -34,9 +33,8 @@ let fileWriterAgent = MailboxProcessor<Message>.Start(fun inbox ->
 )
     
 let load() = 
-    [|maxPlayerId..minPlayerId|]
-    |> PSeq.withDegreeOfParallelism maxDop
-    |> PSeq.iter(fun i -> 
+    [|maxPlayerId..minPlayerId|]    
+    |> Array.Parallel.iter(fun i -> 
         try
             let url = String.Format("http://sokker.org/player/PID/{0}", i)                        
             let player = Player.Load(url).Lists.List4
@@ -46,12 +44,15 @@ let load() =
             then 
                 if extracrPrice priceContainer > minPrice
                 then
-                    let reply = fileWriterAgent.PostAndReply (fun replyChannel -> url, replyChannel)
+                    fileWriterAgent.PostAndReply (fun replyChannel -> url, replyChannel) |> ignore
                     ()
             else
                 ()
         with
-        | _ -> ()
+        | ex -> 
+            match ex.Message with
+            | "Invalid HTML" -> ()
+            | _ -> fileWriterAgent.PostAndReply (fun replyChannel -> ex.Message, replyChannel) |> ignore
     )
 
 [<EntryPoint>]
