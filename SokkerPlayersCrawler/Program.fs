@@ -64,5 +64,5 @@ let load() =
 
 [<EntryPoint>]
 let main argv =
-    load() |> Async.RunSynchronously
+    load() |> Async.RunSynchronously // wait for the whole stream to finish
     0
