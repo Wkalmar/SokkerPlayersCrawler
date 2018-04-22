@@ -45,7 +45,7 @@ let load() =
                 let priceContainer = player.Values.[1]
                 return 
                     if not (countryContainer.Contains "Ukraina") then Error (url, "no Ukraina")
-                    elif extractPrice priceContainer > minPrice then Error (url, "too costy")
+                    elif extractPrice priceContainer < minPrice then Error (url, "too cheap")
                     else Ok url
             with e ->
                 return Error ("", e.Message)
