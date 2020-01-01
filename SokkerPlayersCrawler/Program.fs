@@ -1,18 +1,19 @@
 ﻿open Akka.Actor
 open Akka.Streams
 open Akka.Streams.Supervision
-open FSharp.Collections.ParallelSeq
 open FSharp.Data
 open System
+open System.Collections.Generic
 open System.Text.RegularExpressions
 open System.IO
 open Akkling.Streams
 
-type Player = HtmlProvider<"http://sokker.org/player/PID/25410835">
+type Player = HtmlProvider<"http://sokker.org/player/PID/36363863">
 
-let minPlayerId = 29641529
-let maxPlayerId = 29657066
-let minPrice = 1391000
+let minPlayerId = 36406546
+let maxPlayerId = 37227362
+let minPrice = 136600
+let maxAge = 19
 let priceRegex = Regex("[0-9 ]{1,}")
 let fileName = "output.txt"
 let maxDop = 4
@@ -23,6 +24,10 @@ let extractPrice input =
         let value = m.Value
         Regex.Replace(value, @"\s+", "") |> int            
     | _ -> 0
+
+let tryParse = Int32.TryParse >> function
+    | true, v    -> Some v
+    | false, _   -> None
 
 let system = ActorSystem.Create("test")
 
@@ -40,13 +45,26 @@ let load() =
             try
                 let url = sprintf "http://sokker.org/player/PID/%d" i
                 let! res = Player.AsyncLoad url                        
-                let player = res.Lists.List4
-                let countryContainer = player.Values.[0]
-                let priceContainer = player.Values.[1]
-                return 
-                    if not (countryContainer.Contains "Ukraina") then Error (url, "no Ukraina")
-                    elif extractPrice priceContainer < minPrice then Error (url, "too cheap")
-                    else Ok url
+                try
+                    let _ = res.Tables.Table2
+                    return Error (url, "already in NT")
+                with 
+                | :? KeyNotFoundException -> 
+                    let ageString = (Array.ofList (res.Html.CssSelect(".panel-heading>.title-block-1>strong"))).[0].DirectInnerText()
+                    let age = tryParse ageString
+                    match age with
+                    | Some a -> 
+                        if a > maxAge then return Error(url, "too old")
+                        else
+                            let player = res.Lists.List4                
+                            let countryContainer = player.Values.[0]
+                            let priceContainer = player.Values.[1]                    
+                            return 
+                                if not (countryContainer.Contains "Ukraina") then Error (url, "no Ukraina")
+                                elif extractPrice priceContainer < minPrice then Error (url, "too cheap")
+                                else Ok url
+                    | None -> return Error(url, "Invalid html")
+                    
             with e ->
                 return Error ("", e.Message)
         })
